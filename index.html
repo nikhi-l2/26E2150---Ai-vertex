@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafePath AI - Advanced ASD Ecosystem</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { 
+            font-family: 'Segoe UI', system-ui, sans-serif; 
+            transition: all 1.5s ease;
+            background-image: url('https://images.unsplash.com/photo-1511497584788-876760111969?q=80&w=2000&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        #map { height: 100%; width: 100%; border-radius: 1rem; z-index: 1; transition: all 1.5s ease; cursor: crosshair; }
+        
+        /* Calm Mode Styling */
+        .calm-mode-active { filter: brightness(0.85) saturate(0.9); }
+        .calm-mode-active .glass-panel { background: rgba(4, 47, 46, 0.95) !important; border-color: rgba(13, 148, 136, 0.5) !important; color: #ccfbf1 !important; }
+        .calm-mode-active #map { filter: opacity(0.3) grayscale(0.5); pointer-events: none; } 
+        
+        @keyframes lotus-breathe {
+            0% { transform: scale(1) rotate(0deg); opacity: 0.6; border-radius: 40%; }
+            50% { transform: scale(1.6) rotate(180deg); opacity: 1; border-color: #34d399; border-radius: 50%; }
+            100% { transform: scale(1) rotate(360deg); opacity: 0.6; border-radius: 40%; }
+        }
+        .lotus-ring { animation: lotus-breathe 8s infinite cubic-bezier(0.4, 0, 0.2, 1); }
+        
+        input[type=range] { accent-color: #10b981; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 10px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden relative" id="app-body">
+
+    <audio id="audio-rain" loop preload="auto"><source src="https://cdn.pixabay.com/download/audio/2021/08/09/audio_13bcbb6c48.mp3?filename=light-rain-109591.mp3" type="audio/mpeg"></audio>
+    <audio id="audio-forest" loop preload="auto"><source src="https://cdn.pixabay.com/download/audio/2022/01/18/audio_651f185df1.mp3?filename=forest-with-small-river-birds-and-nature-field-recording-6735.mp3" type="audio/mpeg"></audio>
+    <audio id="audio-ocean" loop preload="auto"><source src="https://cdn.pixabay.com/download/audio/2021/08/04/audio_33bc88a705.mp3?filename=ocean-waves-112906.mp3" type="audio/mpeg"></audio>
+
+    <nav class="glass-panel px-6 py-3 flex justify-between items-center z-50 transition-colors duration-1000 m-4 rounded-2xl shadow-lg">
+        <div class="flex items-center gap-4">
+            <div class="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-2 rounded-xl font-bold shadow-md">AI</div>
+            <div>
+                <h1 class="text-2xl font-extrabold tracking-tight text-slate-800" id="main-title">SafePath <span class="text-emerald-600 font-medium text-sm">v10.0</span></h1>
+                <p class="text-[10px] text-emerald-700 uppercase font-bold tracking-widest flex items-center gap-1" id="nav-subtitle">
+                    <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> SYSTEM SECURE
+                </p>
+            </div>
+        </div>
+        
+        <div class="flex gap-4 items-center">
+            <div id="voice-indicator" class="hidden items-center gap-2 px-3 py-1 bg-teal-800 rounded-full border border-teal-500">
+                <span class="w-2 h-2 bg-teal-300 rounded-full animate-ping"></span>
+                <span class="text-[10px] font-bold text-teal-100 uppercase tracking-widest">AI Speaking...</span>
+            </div>
+            <button onclick="triggerSOS()" class="px-5 py-2.5 bg-red-50 text-red-600 border border-red-200 font-bold rounded-xl hover:bg-red-100 transition text-sm shadow-sm">🚨 Caregiver Link</button>
+            <button id="calm-btn" onclick="toggleCalmMode()" class="px-8 py-2.5 bg-emerald-800 text-white font-bold rounded-xl shadow-xl hover:bg-emerald-700 transition text-sm border-2 border-emerald-600">🌿 INITIATE CALM</button>
+        </div>
+    </nav>
+
+    <main class="flex-1 flex gap-4 px-4 pb-4 overflow-hidden relative">
+        
+        <aside id="standard-sidebar" class="w-1/3 flex flex-col gap-4 overflow-y-auto glass-panel p-5 rounded-2xl transition-colors duration-500">
+            
+            <div class="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100 flex flex-col gap-3">
+                <h3 class="text-xs font-bold text-emerald-800 uppercase tracking-widest flex items-center gap-2"><span>🗺️</span> AI Low-Sensory Route</h3>
+                <div class="flex gap-2">
+                    <input type="text" id="destination-input" placeholder="Enter destination..." class="flex-1 px-3 py-2 rounded-lg border border-slate-200 text-sm">
+                    <button onclick="startRoutingMode()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-emerald-700">GO</button>
+                </div>
+                
+                <div id="prep-checklist" class="hidden flex-col gap-2 mt-2 bg-white p-3 rounded-lg border border-emerald-200">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase">Sensory Prep Checklist</p>
+                    <label class="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" checked> Noise-cancelling headphones</label>
+                    <label class="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" checked> Sunglasses</label>
+                    <label class="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" checked> Fidget Tool / Comfort Item</label>
+                </div>
+            </div>
+
+            <div class="p-4 bg-white/60 rounded-xl border border-white shadow-sm flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Zone Radius Size</h3>
+                    <span id="radius-display" class="text-xs font-bold text-red-500">50 meters</span>
+                </div>
+                <input type="range" id="radius-slider" min="10" max="200" step="10" value="50" class="w-full" oninput="updateRadius(this.value)">
+                <p class="text-[9px] text-slate-400 italic">Adjust size before clicking map to place a red trigger zone.</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="p-3 bg-white/60 rounded-xl border border-white flex justify-between items-center shadow-sm">
+                    <div>
+                        <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Heart Rate</h3>
+                        <div class="text-xl font-black text-slate-800"><span id="heart-rate">72</span> <span class="text-xs">BPM</span></div>
+                    </div>
+                    <span class="text-red-500 animate-pulse text-lg">❤️</span>
+                </div>
+                <button onclick="showSafeSpaces()" class="p-3 bg-emerald-50 text-emerald-800 border border-emerald-100 rounded-xl font-bold text-xs hover:bg-emerald-100 transition shadow-sm flex flex-col justify-center items-center gap-1">
+                    <span class="text-lg">🍃</span> Load Green Havens
+                </button>
+            </div>
+
+            <div class="flex-1 mt-2">
+                <h3 class="text-sm font-bold text-slate-800 border-b border-slate-200 pb-2 mb-3">System Logs</h3>
+                <div id="zone-list" class="space-y-2"></div>
+            </div>
+        </aside>
+
+        <div id="calm-dashboard" class="absolute inset-4 z-[500] hidden flex-col items-center justify-center pointer-events-none">
+            <div class="glass-panel p-10 rounded-3xl flex flex-col items-center max-w-3xl w-full pointer-events-auto border border-teal-500/30 shadow-2xl bg-teal-950/90 text-teal-50">
+                
+                <h2 class="text-2xl font-bold mb-2 tracking-wide text-teal-100">Sensory Regulation Protocol</h2>
+                <p class="text-sm text-teal-300 mb-6 text-center">You are safe. Tune your environment and follow the exercises.</p>
+                
+                <div class="w-full bg-teal-900/50 p-5 rounded-2xl border border-teal-700/50 mb-8 grid grid-cols-2 gap-6 items-center">
+                    <div>
+                        <h3 class="text-[10px] uppercase tracking-widest font-bold text-teal-400 mb-3">1. Select Ambience</h3>
+                        <div class="flex gap-2">
+                            <button onclick="changeSound('forest')" id="btn-forest" class="px-3 py-2 bg-teal-800 border border-teal-600 rounded-lg hover:bg-teal-700 text-xs font-bold shadow-md sound-btn flex-1">🌲 Forest</button>
+                            <button onclick="changeSound('rain')" id="btn-rain" class="px-3 py-2 bg-teal-800 border border-teal-600 rounded-lg hover:bg-teal-700 text-xs font-bold shadow-md sound-btn flex-1">🌧️ Rain/Tide</button>
+                            <button onclick="changeSound('ocean')" id="btn-ocean" class="px-3 py-2 bg-teal-800 border border-teal-600 rounded-lg hover:bg-teal-700 text-xs font-bold shadow-md sound-btn flex-1">🌊 Ocean</button>
+                        </div>
+                    </div>
+                    
+                    <div class="border-l border-teal-700/50 pl-6 flex flex-col justify-center gap-3">
+                        <h3 class="text-[10px] uppercase tracking-widest font-bold text-teal-400">2. Dual Audio Mixer</h3>
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-bold text-teal-300 w-16">NATURE</span>
+                            <input type="range" id="nature-vol" min="0" max="1" step="0.1" value="0.5" class="w-full" oninput="updateMixer()">
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-bold text-teal-300 w-16">AI VOICE</span>
+                            <input type="range" id="voice-vol" min="0" max="1" step="0.1" value="0.8" class="w-full" oninput="updateMixer()">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="w-full grid grid-cols-2 gap-8">
+                    <div class="flex flex-col gap-3 justify-center">
+                        <h3 class="text-xs uppercase tracking-widest font-bold text-teal-400">Grounding Exercise</h3>
+                        <div class="bg-teal-900/40 p-4 rounded-xl border border-teal-700/30 h-32 flex flex-col justify-center items-center text-center cursor-pointer hover:bg-teal-800/40" onclick="nextGroundingStep()">
+                            <p id="grounding-text" class="text-sm font-bold text-teal-100">Click here to begin 5-4-3-2-1 technique.</p>
+                            <p class="text-[9px] text-teal-500 mt-2 uppercase tracking-widest">(Voice Enabled)</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-col items-center justify-center relative">
+                        <div class="w-24 h-24 border-4 border-teal-400 lotus-ring flex items-center justify-center absolute"></div>
+                        <div class="w-12 h-12 bg-gradient-to-tr from-emerald-400 to-teal-300 rounded-full z-10 shadow-lg"></div>
+                        <p class="text-[10px] text-teal-300 mt-16 font-bold uppercase tracking-widest">Inhale • Hold • Exhale</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-2/3 h-full rounded-2xl shadow-2xl border-4 border-white/60 relative overflow-hidden glass-panel p-1">
+            <div id="map" class="rounded-xl relative z-10"></div>
+            
+            <button onclick="undoLastZone()" id="undo-btn" class="absolute bottom-6 left-6 z-[1000] px-5 py-3 bg-white/90 border border-slate-200 text-slate-700 rounded-full shadow-lg hover:text-red-600 hidden font-bold text-sm">↩️ Undo Zone</button>
+            <button onclick="clearRoute()" id="clear-route-btn" class="absolute bottom-6 right-6 z-[1000] px-5 py-3 bg-white/90 border border-slate-200 text-slate-700 rounded-full shadow-lg hover:text-emerald-600 hidden font-bold text-sm">❌ Clear Route</button>
+        </div>
+    </main>
+
+    <script>
+        // Centered roughly on the Gurgaon/South Delhi border for good local context
+        const map = L.map('map').setView([28.4595, 77.0266], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+        // --- DYNAMIC RADIUS CONTROLLER ---
+        let currentRadius = 50;
+        function updateRadius(val) {
+            currentRadius = parseInt(val);
+            document.getElementById('radius-display').innerText = currentRadius + " meters";
+        }
+
+        let activeTriggerZones = [];
+        map.on('click', function(e) {
+            if(isCalm || document.getElementById('clear-route-btn').classList.contains('hidden') === false) return; 
+            const zoneId = 'zone-' + Date.now();
+            
+            const circle = L.circle(e.latlng, { color: '#dc2626', fillColor: '#ef4444', fillOpacity: 0.6, radius: currentRadius }).addTo(map);
+            activeTriggerZones.push({ layer: circle, id: zoneId });
+            logEvent(`Trigger zone (${currentRadius}m) recorded.`, "text-red-600");
+            document.getElementById('undo-btn').classList.remove('hidden');
+        });
+
+        // --- CAREGIVER MOCK LINK ---
+        function triggerSOS() {
+            const mockLink = `https://safepath.ai/track/user_nx83j2?auth=secure`;
+            navigator.clipboard.writeText(mockLink).then(() => {
+                alert(`🚨 SOS Protocol Engaged.\n\nLive tracking link generated and copied to your clipboard:\n${mockLink}\n\n(Paste this in WhatsApp/SMS)`);
+                logEvent("Encrypted Caregiver Link copied to clipboard.", "text-red-700 font-bold");
+            });
+        }
+
+        // --- VOICE ENGINE & AUDIO MIXER RESTORED ---
+        let synth = window.speechSynthesis;
+        let preferredVoice = null;
+        let currentVoiceVol = 0.8;
+
+        function initVoices() {
+            let voices = synth.getVoices();
+            if(voices.length > 0) {
+                preferredVoice = voices.find(v => v.name.includes('India') && v.name.includes('Female')) 
+                              || voices.find(v => v.name.includes('Google UK English Female'))
+                              || voices.find(v => v.name.includes('Female')) || voices[0];
+            }
+        }
+        if (speechSynthesis.onvoiceschanged !== undefined) { speechSynthesis.onvoiceschanged = initVoices; } 
+        else { initVoices(); }
+
+        function playCalmVoice() {
+            if(synth.speaking) synth.cancel();
+            const msg = new SpeechSynthesisUtterance("Calm protocol activated. You are in a safe space. Breathe in slowly. And breathe out.");
+            msg.rate = 0.8;   
+            msg.pitch = 0.9;  
+            msg.volume = currentVoiceVol; 
+            
+            if(preferredVoice) msg.voice = preferredVoice;
+
+            document.getElementById('voice-indicator').style.display = 'flex';
+            msg.onend = function() { document.getElementById('voice-indicator').style.display = 'none'; };
+            synth.speak(msg);
+        }
+
+        let currentAudio = null;
+        const audios = {
+            'forest': document.getElementById('audio-forest'),
+            'rain': document.getElementById('audio-rain'),
+            'ocean': document.getElementById('audio-ocean')
+        };
+
+        function changeSound(type) {
+            if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
+            document.querySelectorAll('.sound-btn').forEach(btn => {
+                btn.classList.remove('bg-emerald-600', 'border-emerald-400');
+                btn.classList.add('bg-teal-800', 'border-teal-600');
+            });
+            currentAudio = audios[type];
+            currentAudio.volume = document.getElementById('nature-vol').value;
+            currentAudio.play();
+            
+            const activeBtn = document.getElementById('btn-' + type);
+            activeBtn.classList.remove('bg-teal-800', 'border-teal-600');
+            activeBtn.classList.add('bg-emerald-600', 'border-emerald-400');
+        }
+
+        function updateMixer() {
+            const natureVol = document.getElementById('nature-vol').value;
+            currentVoiceVol = document.getElementById('voice-vol').value;
+            if(currentAudio) currentAudio.volume = natureVol;
+        }
+
+        // --- GROUNDING TOOL LOGIC WITH VOICE ---
+        const groundingSteps = [
+            "Look around. Name 5 things you can see.",
+            "Focus on your body. Name 4 things you can feel.",
+            "Listen closely. Name 3 things you can hear.",
+            "Take a deep breath. Name 2 things you can smell.",
+            "Name 1 good thing about yourself. You are safe."
+        ];
+        let groundingIndex = -1;
+        function nextGroundingStep() {
+            groundingIndex++;
+            if (groundingIndex >= groundingSteps.length) groundingIndex = 0;
+            
+            const text = groundingSteps[groundingIndex];
+            document.getElementById('grounding-text').innerText = text;
+            
+            // AI Voice reads the text based on the slider volume
+            if(synth.speaking) synth.cancel();
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.rate = 0.85; msg.volume = currentVoiceVol;
+            if(preferredVoice) msg.voice = preferredVoice;
+            document.getElementById('voice-indicator').style.display = 'flex';
+            msg.onend = function() { document.getElementById('voice-indicator').style.display = 'none'; };
+            synth.speak(msg);
+        }
+
+        // --- CALM MODE TOGGLE ---
+        let isCalm = false;
+        function toggleCalmMode() {
+            isCalm = !isCalm;
+            const body = document.getElementById('app-body');
+            const btn = document.getElementById('calm-btn');
+            const sidebar = document.getElementById('standard-sidebar');
+            const calmDash = document.getElementById('calm-dashboard');
+
+            if (isCalm) {
+                body.classList.add('calm-mode-active');
+                btn.innerText = "🛑 DEACTIVATE CALM";
+                btn.classList.replace('bg-emerald-800', 'bg-red-900');
+                btn.classList.replace('border-emerald-600', 'border-red-700');
+                
+                sidebar.classList.add('hidden');
+                calmDash.classList.remove('hidden');
+                calmDash.classList.add('flex');
+
+                changeSound('forest'); 
+                playCalmVoice(); // Initiate the AI Voice greeting again
+                
+            } else {
+                body.classList.remove('calm-mode-active');
+                btn.innerText = "🌿 INITIATE CALM";
+                btn.classList.replace('bg-red-900', 'bg-emerald-800');
+                btn.classList.replace('border-red-700', 'border-emerald-600');
+                
+                sidebar.classList.remove('hidden');
+                calmDash.classList.add('hidden');
+                calmDash.classList.remove('flex');
+
+                if (currentAudio) currentAudio.pause();
+                if (synth.speaking) synth.cancel();
+                
+                groundingIndex = -1;
+                document.getElementById('grounding-text').innerText = "Click here to begin 5-4-3-2-1 technique.";
+            }
+        }
+
+        // --- HEART RATE SIMULATOR ---
+        setInterval(() => {
+            let hr = parseInt(document.getElementById('heart-rate').innerText);
+            if(!isCalm) {
+                hr += Math.floor(Math.random() * 5) - 2;
+                if(hr < 60) hr = 60;
+                document.getElementById('heart-rate').innerText = hr;
+            }
+        }, 3000);
+
+        // --- ROUTING ENGINE WITH CHECKLIST ---
+        let currentRouteLayer = null;
+        function startRoutingMode() {
+            const destInput = document.getElementById('destination-input').value;
+            if(!destInput) return alert("Please enter a destination.");
+
+            document.getElementById('prep-checklist').classList.remove('hidden');
+            logEvent("Sensory Prep Checklist engaged.", "text-slate-500");
+
+            setTimeout(() => {
+                if(currentRouteLayer) map.removeLayer(currentRouteLayer);
+                const dest = [28.47, 77.04]; 
+                currentRouteLayer = L.polyline([[28.6139, 77.2090], [28.55, 77.10], dest], {color: '#10b981', weight: 6, dashArray: '10,10'}).addTo(map);
+                map.fitBounds(currentRouteLayer.getBounds(), {padding: [50,50]});
+                document.getElementById('clear-route-btn').classList.remove('hidden');
+                logEvent(`Low-sensory route to ${destInput} secured.`, "text-emerald-800 font-bold");
+            }, 2500);
+        }
+
+        function clearRoute() {
+            if(currentRouteLayer) map.removeLayer(currentRouteLayer);
+            document.getElementById('clear-route-btn').classList.add('hidden');
+            document.getElementById('prep-checklist').classList.add('hidden');
+            document.getElementById('destination-input').value = "";
+        }
+
+        // --- MASSIVELY EXPANDED GREEN SPACES / SAFE HAVENS ---
+        const safeHavens = [
+            { lat: 28.4828, lng: 77.1023, name: "Aravali Biodiversity Park, Gurgaon", desc: "Expansive trails, very low sensory input." },
+            { lat: 28.5941, lng: 77.2435, name: "Sunder Nursery, Delhi", desc: "Calm heritage park with open spaces." },
+            { lat: 28.5866, lng: 77.2189, name: "Lodhi Gardens, Delhi", desc: "Historical, spacious, and quiet." },
+            { lat: 28.5638, lng: 77.3048, name: "Okhla Bird Sanctuary, Noida", desc: "Peaceful wetland environment." },
+            { lat: 28.5255, lng: 77.1955, name: "Garden of Five Senses, Saket", desc: "Designed for gentle sensory exploration." },
+            { lat: 28.5332, lng: 77.1724, name: "Sanjay Van, Delhi", desc: "Dense, quiet city forest." },
+            { lat: 28.4357, lng: 77.0543, name: "Tau Devi Lal Botanical Garden, Gurgaon", desc: "Quiet, walled-off greenery." },
+            { lat: 28.4891, lng: 77.2844, name: "Surajkund Lake area, Faridabad", desc: "Peaceful outdoors away from city traffic." },
+            { lat: 28.4667, lng: 76.8833, name: "Sultanpur National Park, Gurgaon", desc: "Strict noise control, very calming bird sanctuary." },
+            { lat: 28.5535, lng: 77.1934, name: "Deer Park, Hauz Khas", desc: "Large green area with walking paths and lake." },
+            { lat: 28.4166, lng: 77.0422, name: "Leopard Trail, Sohna", desc: "Secluded natural route perfect for quiet drives." },
+            { lat: 28.4697, lng: 77.2656, name: "Asola Bhatti Wildlife Sanctuary", desc: "Protected ridge area, completely disconnected from city noise." }
+        ];
+        const greenIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41] });
+
+        function showSafeSpaces() {
+            safeHavens.forEach(place => L.marker([place.lat, place.lng], {icon: greenIcon}).addTo(map).bindPopup(`<b>${place.name}</b><br><span style="font-size:11px;">${place.desc}</span>`));
+            
+            // Adjust the view slightly so it perfectly frames the NCR safe havens
+            map.flyTo([28.48, 77.10], 10);
+            logEvent(`Loaded ${safeHavens.length} Green Spaces / Havens.`, "text-emerald-700 font-bold");
+        }
+
+        function undoLastZone() {
+            if(activeTriggerZones.length > 0) {
+                const last = activeTriggerZones.pop();
+                map.removeLayer(last.layer);
+                logEvent("Zone removed.", "text-slate-500");
+            }
+            if(activeTriggerZones.length === 0) document.getElementById('undo-btn').classList.add('hidden');
+        }
+
+        function logEvent(msg, colorClass) {
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('zone-list').insertAdjacentHTML('afterbegin', 
+                `<div class="p-2 bg-white/50 border border-white/60 rounded-lg text-xs ${colorClass} shadow-sm">
+                    <span class="text-[10px] opacity-70 font-mono">${time}</span><br>${msg}
+                 </div>`);
+        }
+    </script>
+</body>
+</html>
